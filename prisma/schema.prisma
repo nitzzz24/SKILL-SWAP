@@ -1,0 +1,218 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                String            @id @default(uuid())
+  email             String            @unique
+  role              String            @default("USER") // USER, VERIFIED_MENTOR, PREMIUM, MODERATOR, ADMIN
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  profile           Profile?
+  swapRequestsSent  SwapRequest[]     @relation("Sender")
+  swapRequestsRecv  SwapRequest[]     @relation("Receiver")
+  messagesSent      Message[]         @relation("MsgSender")
+  notifications     Notification[]
+  reviewsWritten    Review[]          @relation("Reviewer")
+  reviewsReceived   Review[]          @relation("Reviewee")
+  achievements      UserAchievement[]
+  badges            UserBadge[]
+  reportsCreated    Report[]          @relation("Reporter")
+  reportsAgainst    Report[]          @relation("ReportedUser")
+  adminLogs         AdminLog[]
+  subscriptions     Subscription[]
+  bookmarks         Bookmark[]
+  activityLogs      ActivityLog[]
+}
+
+model Profile {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName    String
+  avatarUrl      String?
+  coverUrl       String?
+  bio            String?
+  location       String?
+  latitude       Float?
+  longitude      Float?
+  languages      String   // Stored as comma-separated string for SQLite simplicity
+  availability   String   // JSON string of weekly calendar slots
+  skillsOffered  Skill[]  @relation("SkillsOffered")
+  skillsWanted   Skill[]  @relation("SkillsWanted")
+  rating         Float    @default(0.0)
+  xpPoints       Int      @default(0)
+  level          Int      @default(1)
+  streakDays     Int      @default(0)
+  lastActiveAt   DateTime @default(now())
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  skills      Skill[]
+}
+
+model Skill {
+  id            String    @id @default(uuid())
+  title         String
+  description   String
+  experience    String    // Beginner, Intermediate, Expert
+  durationWeeks Int       @default(4)
+  teachingStyle String?
+  requirements  String?
+  categoryId    String
+  category      Category  @relation(fields: [categoryId], references: [id])
+  offeredBy     Profile[] @relation("SkillsOffered")
+  wantedBy      Profile[] @relation("SkillsWanted")
+}
+
+model SwapRequest {
+  id          String        @id @default(uuid())
+  senderId    String
+  sender      User          @relation("Sender", fields: [senderId], references: [id])
+  receiverId  String
+  receiver    User          @relation("Receiver", fields: [receiverId], references: [id])
+  status      String        @default("PENDING") // PENDING, ACCEPTED, REJECTED, CANCELLED, COMPLETED
+  notes       String?
+  scheduledAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  sessions    Session[]
+}
+
+model Session {
+  id            String      @id @default(uuid())
+  requestId     String
+  swapRequest   SwapRequest @relation(fields: [requestId], references: [id])
+  meetingLink   String?
+  scheduledTime DateTime
+  durationMins  Int         @default(60)
+  completed     Boolean     @default(false)
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  chatId     String
+  senderId   String
+  sender     User     @relation("MsgSender", fields: [senderId], references: [id])
+  content    String
+  fileUrl    String?
+  fileType   String?  // IMAGE, FILE, VOICE
+  seen       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  content   String
+  type      String   // SYSTEM, SWAP_REQUEST, CHAT
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Review {
+  id          String   @id @default(uuid())
+  reviewerId  String
+  reviewer    User     @relation("Reviewer", fields: [reviewerId], references: [id])
+  revieweeId  String
+  reviewee    User     @relation("Reviewee", fields: [revieweeId], references: [id])
+  rating      Int
+  content     String
+  isVerified  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Achievement {
+  id          String            @id @default(uuid())
+  title       String
+  description String
+  xpReward    Int
+  users       UserAchievement[]
+}
+
+model UserAchievement {
+  userId        String
+  achievementId String
+  user          User        @relation(fields: [userId], references: [id])
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+  unlockedAt    DateTime    @default(now())
+  @@id([userId, achievementId])
+}
+
+model Badge {
+  id          String      @id @default(uuid())
+  name        String      @unique
+  iconUrl     String
+  description String
+  users       UserBadge[]
+}
+
+model UserBadge {
+  userId     String
+  badgeId    String
+  user       User     @relation(fields: [userId], references: [id])
+  badge      Badge    @relation(fields: [badgeId], references: [id])
+  acquiredAt DateTime @default(now())
+  @@id([userId, badgeId])
+}
+
+model Report {
+  id             String   @id @default(uuid())
+  reporterId     String
+  reporter       User     @relation("Reporter", fields: [reporterId], references: [id])
+  reportedUserId String
+  reportedUser   User     @relation("ReportedUser", fields: [reportedUserId], references: [id])
+  reason         String
+  resolved       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+}
+
+model AdminLog {
+  id        String   @id @default(uuid())
+  adminId   String
+  admin     User     @relation(fields: [adminId], references: [id])
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+}
+
+model Subscription {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  plan      String   // PREMIUM
+  active    Boolean  @default(true)
+  expiresAt DateTime
+}
+
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  targetId  String   // Profile or Skill ID
+  type      String   // PROFILE, SKILL
+  createdAt DateTime @default(now())
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  metadata  String?  // SQLite string representation of JSON
+  createdAt DateTime @default(now())
+}
